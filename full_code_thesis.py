@@ -258,13 +258,6 @@ folium.GeoJson(
     geojson_data
 ).add_to(map)
 
-
-# TimelineSlider(
-#     auto_play=False,
-#     show_ticks=True,
-#     enable_keyboard_controls=True,
-#     playback_duration=30000,
-# ).add_timelines(timeline).add_to(m)
 for i, row in df_results.iterrows():
   if row['coordinates'] == None:
     continue
@@ -375,6 +368,71 @@ df2 = pd.DataFrame(response_list)
 df3 = pd.concat([df, df2], axis=1)
 df3.to_csv("results_all2_prices.csv", index=False, encoding="utf-8")
 print(df2)
+
+"""# Linear mixed models"""
+
+import pandas as pd
+from geopy.distance import geodesic
+import numpy as np
+import matplotlib.pyplot as plt
+
+df = pd.read_csv("price_list.csv")
+inflatie = {
+   'LP2004_all.txt': 121.43 / 83.48,
+   'LP2007_all.txt': 121.43 / 87.20,
+   'LP2010_all.txt': 121.43 / 91.59,
+   'LP2013_all.txt': 121.43 / 98.44,
+   'LP2016_all.txt': 121.43 / 100.32,
+   'LP2019_all.txt': 121.43 / 106.16,
+   'LP2022_all.txt': 121.43 / 121.43,
+}
+
+years = {
+   'LP2004_all.txt': '2004',
+   'LP2007_all.txt': '2007',
+   'LP2010_all.txt': '2010',
+   'LP2013_all.txt': '2013',
+   'LP2016_all.txt': '2016',
+   'LP2019_all.txt': '2019',
+   'LP2022_all.txt': '2022',
+}
+
+df['inflatie'] = df['year'].map(inflatie)
+df['year2'] = df['year'].map(years)
+df['prijs_inflatie'] = (df['inflatie'] * df['price3'])
+
+df = df.dropna(subset=['coordinates'])
+df['coordinates'] = df['coordinates'].str.strip('[]')
+df[['latitude', 'longitude']] = df['coordinates'].str.split(',', expand=True)
+
+
+df['latitude'] = df['latitude'].astype(float)
+df['longitude'] = df['longitude'].astype(float)
+# station: 52.3788524896101, 4.900545928891128
+# dam: 52.373186539236066, 4.892475385925442
+# random locatie: 52.37223302386973, 4.9006555183596525
+df["distance_dam"] = df.apply(lambda row: geodesic((row['latitude'], row['longitude']), (52.373186539236066, 4.892475385925442)).km, 
+    axis=1)
+
+# print(df.groupby("year")["distance_dam"].mean())
+# df.to_csv("coordinates_list.csv", encoding="utf-8", index=False)
+
+print(df.head())
+
+import statsmodels.api as sm
+
+import statsmodels.formula.api as smf
+
+df['distance_dam_linear'] = df['distance_dam'].copy()
+
+df['year'] = df['year2'].astype('category')
+df['gebied'] = df['gebied'].astype('category')
+df['buurt'] = df['buurt'].astype('category')
+df['wijk'] = df['wijk'].astype('category')
+df['distance_dam'] = np.log(df['distance_dam'])
+md = smf.mixedlm("prijs_inflatie ~ distance_dam * year", df, groups=df["wijk"])
+mdf = md.fit()
+print(mdf.summary())
 
 """# Topic modelling"""
 
