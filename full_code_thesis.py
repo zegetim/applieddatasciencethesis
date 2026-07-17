@@ -486,3 +486,97 @@ fig = topic_model.visualize_topics_over_time(topics_over_time)
 print(type(fig))
 print(len(fig.data))
 fig.show()
+
+"""# Analyses for distance to Dam"""
+
+df = pd.read_csv("results_all2.csv")
+
+years = {
+    'LP2004_all.txt': '2004',
+    'LP2007_all.txt': '2007',
+    'LP2010_all.txt': '2010',
+    'LP2013_all.txt': '2013',
+    'LP2016_all.txt': '2016',
+    'LP2019_all.txt': '2019',
+    'LP2022_all.txt': '2022',
+}
+df['year'] = df['year'].map(years)
+
+# jaren = [2004, 2013, 2022]
+# df = df[df['year'].isin(jaren)].copy()
+df = df[(df['year'] == '2004') | (df['year'] == '2013') | (df['year'] == '2022')]
+
+df = df.dropna(subset=['coordinates'])
+df['coordinates'] = df['coordinates'].str.strip('[]')
+df[['latitude', 'longitude']] = df['coordinates'].str.split(',', expand=True)
+df['latitude'] = df['latitude'].astype(float)
+df['longitude'] = df['longitude'].astype(float)
+
+df["distance_dam"] = df.apply(lambda row: geodesic((row['latitude'], row['longitude']), (52.373186539236066, 4.892475385925442)).km, 
+    axis=1)
+df = df[df['distance_dam'] <= 10]
+
+centroids = df.groupby(['year', 'type'])[['latitude', 'longitude']].mean().reset_index()
+
+print(centroids)
+
+centroids["distance_dam"] = centroids.apply(lambda row: geodesic((row['latitude'], row['longitude']), (52.373186539236066, 4.892475385925442)).km, 
+    axis=1)
+
+centroids['distance_dam'] = centroids['distance_dam'].round(3)
+centroids.to_csv('centroids_per_jaar.csv', index=False)
+
+print(centroids.head(10))
+
+centroids = centroids.sort_values('year')
+
+g = sns.relplot(
+    data=centroids, 
+    x='year', 
+    y='distance_dam', 
+    col='type',     
+    col_wrap=3,     
+    kind='line', 
+    marker='o',
+    height=4, 
+    aspect=1.2,
+    facet_kws={'sharex': False}
+)
+unique_years = sorted(centroids['year'].unique())
+for ax in g.axes.flatten():
+    ax.set_xticks(range(len(unique_years)))
+    ax.set_xticklabels(unique_years)
+
+g.fig.subplots_adjust(hspace=0.4)
+g.set_titles("{col_name}")
+g.set_axis_labels("Year", "Distance to Dam (km)")
+plt.subplots_adjust(top=0.9)
+g.fig.suptitle('Distance to Dam per type')
+
+
+plt.savefig('distance_grid.png')
+# plt.show()
+
+total_avg = centroids.groupby('year')['distance_dam'].mean().reset_index()
+
+plt.figure(figsize=(10, 6))
+sns.lineplot(
+    data=total_avg, 
+    x='year', 
+    y='distance_dam', 
+    marker='o', 
+    color='black', 
+    linewidth=2.5,
+    label='Gemiddelde (alle types)'
+)
+
+plt.title('Gemiddelde afstand tot de Dam (alle types gecombineerd)')
+plt.xlabel('Jaar')
+plt.ylabel('Afstand tot de Dam (km)')
+plt.xticks(rotation=45)
+plt.grid(True, linestyle='--', alpha=0.7)
+plt.legend()
+plt.tight_layout()
+
+plt.savefig('totaal_gemiddelde.png')
+plt.show()
